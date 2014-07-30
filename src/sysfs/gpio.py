@@ -106,10 +106,10 @@ class GPIOPin(object):
 
         with open(self._get_sysfs_gpio_direction_path(), 'w') as fsdir:
 
-            if fsdir is GPIOPinDirection.OUTPUT:
+            if direction is GPIOPinDirection.OUTPUT:
                 fsdir.write(self.SYSFS_GPIO_DIRECTION_OUT)
 
-            elif fsdir is GPIOPinDirection.INPUT:
+            elif direction is GPIOPinDirection.INPUT:
                 fsdir.write(self.SYSFS_GPIO_DIRECTION_IN)
 
         with open(self._get_sysfs_gpio_edge_path(), 'w') as fsedge:
@@ -153,12 +153,14 @@ class GPIOPin(object):
         Set pin to HIGH logic setLevel
         """
         self._fd.write(self.SYSFS_GPIO_VALUE_HIGH)
+        self._fd.seek(0)
 
     def reset(self):
         """
         Set pin to LOW logic setLevel
         """
         self._fd.write(self.SYSFS_GPIO_VALUE_LOW)
+        self._fd.seek(0)
 
     def read(self):
         """
