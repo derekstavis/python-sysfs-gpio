@@ -299,7 +299,7 @@ class GPIOController(object):
 
     def _poll_queue_register_pin(self, pin):
         ''' GPIOPin responds to fileno(), so it's pollable. '''
-        self._poll_queue.register(pin, select.EPOLLPRI)
+        self._poll_queue.register(pin, (select.EPOLLPRI | select.EPOLLET))
 
     def _poll_queue_unregister_pin(self, pin):
         self._poll_queue.unregister(pin)
@@ -375,7 +375,7 @@ class GPIOController(object):
         """
         
         for fd, event in events:
-            if not (event & (select.EPOLLPRI)): continue
+            if not (event & (select.EPOLLPRI | select.EPOLLET)): continue
 
             for pin in self._allocated_pins.itervalues():
                 if pin.fileno() == fd:
