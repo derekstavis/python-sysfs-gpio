@@ -24,7 +24,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
-import sys, os, select
+import os
+import select
 
 from twisted.internet import reactor
 
@@ -32,8 +33,9 @@ import logging
 
 Logger = logging.getLogger('sysfs.gpio')
 
+
 class GPIOPinDirection:
-    """ 
+    """
     Enumerates signal directions
     """
 
@@ -44,17 +46,19 @@ class GPIOPinDirection:
     OUTPUT  = 1
     all     = [INPUT, OUTPUT]
 
+
 class GPIOPinEdge:
-    """ 
+    """
     Enumerates signal edge detection
     """
 
     def __init__(self):
         raise RuntimeError("You should not instantiate this class")
-    
+
     RISING  = 0
     FALLING = 1
     BOTH    = 3
+
 
 class GPIOPin(object):
     """
@@ -87,12 +91,12 @@ class GPIOPin(object):
         @type  callback: callable
         @param callback: Method be called when pin changes state
         @type  edge: int
-        @param edge: The edge transition that triggers callback, 
+        @param edge: The edge transition that triggers callback,
                      enumerated by C{GPIOPinEdge}
         """
         if direction not in GPIOPinDirection.all:
-            raise Exception("Pin direction %s not in GPIOPinDirection.all" % direction)
-            return
+            raise Exception("Pin direction %s not in GPIOPinDirection.all"
+                            % direction)
 
         self._number = number
         self._direction = direction
@@ -127,6 +131,7 @@ class GPIOPin(object):
         Gets this pin callback
         """
         return self._callback
+
     @callback.setter
     def callback(self, value):
         """
@@ -189,7 +194,7 @@ class GPIOPin(object):
     def _get_sysfs_gpio_value_path(self):
         """
         Get the file that represent the value of this pin.
-        
+
         @rtype: str
         @return: the path to sysfs value file
         """
@@ -259,10 +264,11 @@ class GPIOController(object):
     @property
     def available_pins(self):
         return self._available_pins
+
     @available_pins.setter
     def available_pins(self, value):
         self._available_pins = value
-        
+
     def stop(self):
         self._running = False
 
@@ -271,7 +277,8 @@ class GPIOController(object):
 
     def alloc_pin(self, number, direction, callback=None, edge=None):
 
-        Logger.debug('SysfsGPIO: alloc_pin(%d, %d, %s, %s)' % (number, direction, callback, edge))
+        Logger.debug('SysfsGPIO: alloc_pin(%d, %d, %s, %s)'
+                     % (number, direction, callback, edge))
 
         self._check_pin_validity(number)
 
@@ -373,9 +380,10 @@ class GPIOController(object):
         """
         EPoll event callback
         """
-        
+
         for fd, event in events:
-            if not (event & (select.EPOLLPRI | select.EPOLLET)): continue
+            if not (event & (select.EPOLLPRI | select.EPOLLET)):
+                continue
 
             for pin in self._allocated_pins.itervalues():
                 if pin.fileno() == fd:
@@ -411,5 +419,5 @@ class GPIOController(object):
             raise Exception("Pin already allocated")
             return
 
-if __name__ ==  '__main__':
+if __name__ == '__main__':
     print("This module isn't intended to be run directly.")

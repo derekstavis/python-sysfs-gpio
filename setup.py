@@ -19,10 +19,10 @@ setup(name                 = __name__,
       author               = __author__,
       author_email         = __author_email__,
       url                  = __author_site__,
-      
+
       install_requires     = requirements,
       include_package_data = True,
 
       packages = find_packages('src'),  # include all packages under src
-      package_dir = {'':'src'},         # tell distutils packages are under src
+      package_dir = {'': 'src'},        # tell distutils packages are under src
 )
