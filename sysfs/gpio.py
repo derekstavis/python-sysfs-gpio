@@ -24,6 +24,10 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 
+__all__ = ('DIRECTIONS', 'INPUT', 'OUTPUT',
+           'EDGES', 'RISING', 'FALLING', 'BOTH',
+           'Controller')
+
 import os
 import select
 
@@ -32,98 +36,71 @@ from twisted.internet import reactor
 import logging
 
 Logger = logging.getLogger('sysfs.gpio')
+Logger.addHandler(logging.StreamHandler())
+Logger.setLevel(logging.DEBUG)
+
+# Sysfs constants
+
+SYSFS_BASE_PATH     = '/sys/class/gpio'
+
+SYSFS_EXPORT_PATH   = SYSFS_BASE_PATH + '/export'
+SYSFS_UNEXPORT_PATH = SYSFS_BASE_PATH + '/unexport'
+
+SYSFS_GPIO_PATH           = SYSFS_BASE_PATH + '/gpio%d'
+SYSFS_GPIO_DIRECTION_PATH = SYSFS_GPIO_PATH + '/direction'
+SYSFS_GPIO_EDGE_PATH      = SYSFS_GPIO_PATH + '/edge'
+SYSFS_GPIO_VALUE_PATH     = SYSFS_GPIO_PATH + '/value'
+
+SYSFS_GPIO_VALUE_LOW   = '0'
+SYSFS_GPIO_VALUE_HIGH  = '1'
+
+EPOLL_TIMEOUT = 1  # second
+
+# Public interface
+
+INPUT   = 'in'
+OUTPUT  = 'out'
+
+RISING  = 'rising'
+FALLING = 'falling'
+BOTH    = 'both'
+
+DIRECTIONS = (INPUT, OUTPUT)
+EDGES = (RISING, FALLING, BOTH)
 
 
-class GPIOPinDirection:
-    """
-    Enumerates signal directions
-    """
-
-    def __init__(self):
-        raise RuntimeError("You should not instantiate this class")
-
-    INPUT   = 0
-    OUTPUT  = 1
-    all     = [INPUT, OUTPUT]
-
-
-class GPIOPinEdge:
-    """
-    Enumerates signal edge detection
-    """
-
-    def __init__(self):
-        raise RuntimeError("You should not instantiate this class")
-
-    RISING  = 0
-    FALLING = 1
-    BOTH    = 3
-
-
-class GPIOPin(object):
+class Pin(object):
     """
     Represent a pin in SysFS
     """
-
-    SYSFS_GPIO_PATH     = '/sys/class/gpio/gpio%d'
-
-    SYSFS_GPIO_DIRECTION_PATH = SYSFS_GPIO_PATH + '/direction'
-    SYSFS_GPIO_EDGE_PATH      = SYSFS_GPIO_PATH + '/edge'
-    SYSFS_GPIO_VALUE_PATH     = SYSFS_GPIO_PATH + '/value'
-
-    SYSFS_GPIO_EDGE_NONE    = 'none'
-    SYSFS_GPIO_EDGE_RISING  = 'rising'
-    SYSFS_GPIO_EDGE_FALLING = 'falling'
-    SYSFS_GPIO_EDGE_BOTH    = 'both'
-
-    SYSFS_GPIO_DIRECTION_OUT  = 'out'
-    SYSFS_GPIO_DIRECTION_IN   = 'in'
-
-    SYSFS_GPIO_VALUE_LOW   = '0'
-    SYSFS_GPIO_VALUE_HIGH  = '1'
 
     def __init__(self, number, direction, callback=None, edge=None):
         """
         @type  number: int
         @param number: The pin number
         @type  direction: int
-        @param direction: Pin direction, enumerated by C{GPIOPinDirection}
+        @param direction: Pin direction, enumerated by C{Direction}
         @type  callback: callable
         @param callback: Method be called when pin changes state
         @type  edge: int
         @param edge: The edge transition that triggers callback,
-                     enumerated by C{GPIOPinEdge}
+                     enumerated by C{Edge}
         """
-        if direction not in GPIOPinDirection.all:
-            raise Exception("Pin direction %s not in GPIOPinDirection.all"
-                            % direction)
-
         self._number = number
         self._direction = direction
         self._callback  = callback
 
-        self._fd = open(self._get_sysfs_gpio_value_path(), 'r+')
-        self._edge = edge
+        self._fd = open(self._sysfs_gpio_value_path(), 'r+')
 
         if callback is not None and edge is None:
             raise Exception('You must supply a edge to trigger callback on')
 
-        with open(self._get_sysfs_gpio_direction_path(), 'w') as fsdir:
+        with open(self._sysfs_gpio_direction_path(), 'w') as fsdir:
+            fsdir.write(direction)
 
-            if direction is GPIOPinDirection.OUTPUT:
-                fsdir.write(self.SYSFS_GPIO_DIRECTION_OUT)
-
-            elif direction is GPIOPinDirection.INPUT:
-                fsdir.write(self.SYSFS_GPIO_DIRECTION_IN)
-
-        with open(self._get_sysfs_gpio_edge_path(), 'w') as fsedge:
-
-            if edge is GPIOPinEdge.BOTH:
-                fsedge.write(self.SYSFS_GPIO_EDGE_BOTH)
-            elif edge is GPIOPinEdge.RISING:
-                fsedge.write(self.SYSFS_GPIO_EDGE_RISING)
-            elif edge is GPIOPinEdge.FALLING:
-                fsedge.write(self.SYSFS_GPIO_EDGE_FALLING)
+        if edge is not None:
+            with open(self._sysfs_gpio_edge_path(), 'w') as fsedge:
+                fsedge.write(edge)
 
     @property
     def callback(self):
@@ -157,14 +134,14 @@ class GPIOPin(object):
         """
         Set pin to HIGH logic setLevel
         """
-        self._fd.write(self.SYSFS_GPIO_VALUE_HIGH)
+        self._fd.write(SYSFS_GPIO_VALUE_HIGH)
         self._fd.seek(0)
 
     def reset(self):
         """
         Set pin to LOW logic setLevel
         """
-        self._fd.write(self.SYSFS_GPIO_VALUE_LOW)
+        self._fd.write(SYSFS_GPIO_VALUE_LOW)
         self._fd.seek(0)
 
     def read(self):
@@ -191,59 +168,50 @@ class GPIOPin(object):
         if callable(self._callback):
             self._callback(self.number, state)
 
-    def _get_sysfs_gpio_value_path(self):
+    def _sysfs_gpio_value_path(self):
         """
         Get the file that represent the value of this pin.
 
         @rtype: str
         @return: the path to sysfs value file
         """
-        return self.SYSFS_GPIO_VALUE_PATH % self.number
+        return SYSFS_GPIO_VALUE_PATH % self.number
 
-    def _get_sysfs_gpio_direction_path(self):
+    def _sysfs_gpio_direction_path(self):
         """
         Get the file that represent the direction of this pin.
 
         @rtype: str
         @return: the path to sysfs direction file
         """
-        return self.SYSFS_GPIO_DIRECTION_PATH % self.number
+        return SYSFS_GPIO_DIRECTION_PATH % self.number
 
-    def _get_sysfs_gpio_edge_path(self):
+    def _sysfs_gpio_edge_path(self):
         """
         Get the file that represent the edge that will trigger an interrupt.
 
         @rtype: str
         @return: the path to sysfs edge file
         """
-        return self.SYSFS_GPIO_EDGE_PATH % self.number
+        return SYSFS_GPIO_EDGE_PATH % self.number
 
 
-class GPIOController(object):
+class Controller(object):
     '''
     A singleton class to provide access to SysFS GPIO pins
     '''
 
-    SYSFS_GPIO_PATH     = '/sys/class/gpio/gpio%d'
-
-    SYSFS_EXPORT_PATH   = '/sys/class/gpio/export'
-    SYSFS_UNEXPORT_PATH = '/sys/class/gpio/unexport'
-
-    EVENT_LOOP_INTERVAL = 0.01
-
     def __new__(cls, *args, **kw):
         if not hasattr(cls, '_instance'):
-            instance = super(GPIOController, cls).__new__(cls, args, kw)
+            instance = super(Controller, cls).__new__(cls, args, kw)
             instance._allocated_pins = {}
             instance._poll_queue = select.epoll()
 
             instance._available_pins = []
             instance._running = True
 
-            reactor.addSystemEventTrigger(
-                'before', 'shutdown',
-                instance.stop
-            )
+            # Cleanup before stopping reactor
+            reactor.addSystemEventTrigger('before', 'shutdown', instance.stop)
 
             # Run the EPoll in a Thread, as it blocks.
             reactor.callInThread(instance._poll_queue_loop)
@@ -257,7 +225,7 @@ class GPIOController(object):
     def _poll_queue_loop(self):
 
         while self._running:
-            events = self._poll_queue.poll(1)
+            events = self._poll_queue.poll(EPOLL_TIMEOUT)
             if len(events) > 0:
                 reactor.callFromThread(self._poll_queue_event, events)
 
@@ -277,35 +245,34 @@ class GPIOController(object):
 
     def alloc_pin(self, number, direction, callback=None, edge=None):
 
-        Logger.debug('SysfsGPIO: alloc_pin(%d, %d, %s, %s)'
+        Logger.debug('SysfsGPIO: alloc_pin(%d, %s, %s, %s)'
                      % (number, direction, callback, edge))
 
         self._check_pin_validity(number)
 
-        if direction not in GPIOPinDirection.all:
-            raise Exception("direction not in GPIOPinDirection")
-            return
+        if direction not in DIRECTIONS:
+            raise Exception("Pin direction %s not in %s"
+                            % (direction, DIRECTIONS))
+
+        if callback is not None and edge not in EDGES:
+            raise Exception("Pin edge %s not in %s" % (edge, EDGES))
 
         if not self._check_pin_already_exported(number):
-
-            with open(self.SYSFS_EXPORT_PATH, 'w') as export:
+            with open(SYSFS_EXPORT_PATH, 'w') as export:
                 export.write('%d' % number)
-
         else:
-
             Logger.debug("SysfsGPIO: Pin %d already exported" % number)
 
-        pin = GPIOPin(number, direction, callback, edge)
+        pin = Pin(number, direction, callback, edge)
 
-        self._allocated_pins[number] = pin
-
-        if direction is GPIOPinDirection.INPUT:
+        if direction is INPUT:
             self._poll_queue_register_pin(pin)
 
+        self._allocated_pins[number] = pin
         return pin
 
     def _poll_queue_register_pin(self, pin):
-        ''' GPIOPin responds to fileno(), so it's pollable. '''
+        ''' Pin responds to fileno(), so it's pollable. '''
         self._poll_queue.register(pin, (select.EPOLLPRI | select.EPOLLET))
 
     def _poll_queue_unregister_pin(self, pin):
@@ -318,12 +285,12 @@ class GPIOController(object):
         if number not in self._allocated_pins:
             raise Exception('Pin %d not allocated' % number)
 
-        with open(self.SYSFS_UNEXPORT_PATH, 'w') as unexport:
+        with open(SYSFS_UNEXPORT_PATH, 'w') as unexport:
             unexport.write('%d' % number)
 
         pin = self._allocated_pins[number]
 
-        if pin.direction is GPIOPinDirection.INPUT:
+        if pin.direction is INPUT:
             self._poll_queue_unregister_pin(pin)
 
         del pin, self._allocated_pins[number]
@@ -361,12 +328,12 @@ class GPIOController(object):
 
         pin = self._allocated_pins[number]
 
-        if pin.direction == GPIOPinDirection.INPUT:
+        if pin.direction == INPUT:
             self._poll_queue_unregister_pin(pin)
 
         val = pin.read()
 
-        if pin.direction == GPIOPinDirection.INPUT:
+        if pin.direction == INPUT:
             self._poll_queue_register_pin(pin)
 
         if val <= 0:
@@ -398,7 +365,7 @@ class GPIOController(object):
         @rtype: bool
         @return: C{True} when it's already exported, otherwise C{False}
         """
-        gpio_path = self.SYSFS_GPIO_PATH % number
+        gpio_path = SYSFS_GPIO_PATH % number
         return os.path.isdir(gpio_path)
 
     def _check_pin_validity(self, number):
@@ -413,11 +380,13 @@ class GPIOController(object):
 
         if number not in self._available_pins:
             raise Exception("Pin number out of range")
-            return
 
         if number in self._allocated_pins:
             raise Exception("Pin already allocated")
-            return
+
+# Create controller instance
+Controller = Controller()
+
 
 if __name__ == '__main__':
     print("This module isn't intended to be run directly.")

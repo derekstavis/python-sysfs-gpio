@@ -3,10 +3,9 @@ Linux SysFS GPIO access via Python
 
 This package offer Python classes to work with GPIO on Linux.
 
-## Core Requirements
+## System Requirements
 
-As this pacakge relies on modern techniques provided by Linux kernel,
-your kernel version should support at least EPoll and SysFS interfaces.
+As this package relies on modern techniques provided by Linux kernel, so your kernel version should support at least EPoll and SysFS interfaces.
 
 ## Package Requirements
 
@@ -37,24 +36,22 @@ need setuptools.
     
     # Import this package objects
     
-    from sysfs.gpio import GPIOController
-    from sysfs.gpio import GPIOPinDirection as Direction
-    from sysfs.gpio import GPIOPinEdge as Edge
+    from sysfs.gpio import Controller, OUTPUT, INPUT, RISING
     
-    # Refer to your chip GPIO numbers and set them here
+    # Refer to your chip GPIO numbers and set them this way
     
-    GPIOController().available_pins = [1, 2, 3, 4] 
+    Controller.available_pins = [1, 2, 3, 4]
     
     # Allocate a pin as Output signal
     
-    pin = GPIOController().alloc_pin(1, Direction.OUTPUT)
+    pin = Controller.alloc_pin(1, OUTPUT)
     pin.set()   # Sets pin to high logic level
     pin.reset() # Sets pin to low logic level
     pin.read()  # Reads pin logic level
     
     # Allocate a pin as simple Input signal
     
-    pin = GPIOController().alloc_pin(1, Direction.INPUT)
+    pin = Controller.alloc_pin(1, INPUT)
     pin.read()  # Reads pin logic level
     
     # Allocate a pin as level triggered Input signal
@@ -62,7 +59,7 @@ need setuptools.
     def pin_changed(state):
         print("Pin changed to %d state" % state)
     
-    pin = GPIOController().alloc_pin(1, Direction.INPUT, changed, Edge.RISING)
+    pin = Controller.alloc_pin(1, INPUT, pin_changed, RISING)
     pin.read()  # Reads pin logic level
 
 ```
