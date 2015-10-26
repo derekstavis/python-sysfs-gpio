@@ -7,7 +7,7 @@ from setuptools import setup, find_packages
 __name__         = 'sysfs-gpio'
 __description__  = 'Linux SysFS GPIO Access'
 __author__       = 'Derek Willian Stavis'
-__version__      = '0.1'
+__version__      = '0.2.0'
 __author_email__ = 'dekestavis@gmail.com'
 __author_site__  = 'http://derekstavis.github.io'
 
