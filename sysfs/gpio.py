@@ -50,6 +50,7 @@ SYSFS_GPIO_PATH           = SYSFS_BASE_PATH + '/gpio%d'
 SYSFS_GPIO_DIRECTION_PATH = SYSFS_GPIO_PATH + '/direction'
 SYSFS_GPIO_EDGE_PATH      = SYSFS_GPIO_PATH + '/edge'
 SYSFS_GPIO_VALUE_PATH     = SYSFS_GPIO_PATH + '/value'
+SYSFS_GPIO_ACTIVE_LOW_PATH = SYSFS_GPIO_PATH + '/active_low'
 
 SYSFS_GPIO_VALUE_LOW   = '0'
 SYSFS_GPIO_VALUE_HIGH  = '1'
@@ -65,8 +66,12 @@ RISING  = 'rising'
 FALLING = 'falling'
 BOTH    = 'both'
 
+ACTIVE_LOW_ON = 1
+ACTIVE_LOW_OFF = 0
+
 DIRECTIONS = (INPUT, OUTPUT)
 EDGES = (RISING, FALLING, BOTH)
+ACTIVE_LOW_MODES = (ACTIVE_LOW_ON, ACTIVE_LOW_OFF)
 
 
 class Pin(object):
@@ -74,7 +79,7 @@ class Pin(object):
     Represent a pin in SysFS
     """
 
-    def __init__(self, number, direction, callback=None, edge=None):
+    def __init__(self, number, direction, callback=None, edge=None, active_low=0):
         """
         @type  number: int
         @param number: The pin number
@@ -85,22 +90,32 @@ class Pin(object):
         @type  edge: int
         @param edge: The edge transition that triggers callback,
                      enumerated by C{Edge}
+        @type active_low: int
+        @param active_low: Indicator of whether this pin uses inverted
+                           logic for HIGH-LOW transitions.
         """
         self._number = number
         self._direction = direction
         self._callback  = callback
+        self._active_low = active_low
 
         self._fd = open(self._sysfs_gpio_value_path(), 'r+')
 
-        if callback is not None and edge is None:
+        if callback and not edge:
             raise Exception('You must supply a edge to trigger callback on')
 
         with open(self._sysfs_gpio_direction_path(), 'w') as fsdir:
             fsdir.write(direction)
 
-        if edge is not None:
+        if edge:
             with open(self._sysfs_gpio_edge_path(), 'w') as fsedge:
                 fsedge.write(edge)
+
+        if active_low:
+            if active_low not in ACTIVE_LOW_MODES:
+                raise Exception('You must supply a value for active_low which is either 0 or 1.')            
+            with open(self._sysfs_gpio_active_low_path(), 'w') as fsactive_low:
+                fsactive_low.write(active_low)
 
     @property
     def callback(self):
@@ -129,6 +144,13 @@ class Pin(object):
         Pin number
         """
         return self._number
+
+    @property
+    def active_low(self):
+        """
+        Pin number
+        """
+        return self._active_low
 
     def set(self):
         """
@@ -195,6 +217,15 @@ class Pin(object):
         """
         return SYSFS_GPIO_EDGE_PATH % self.number
 
+    def _sysfs_gpio_active_low_path(self):
+        """
+        Get the file that represents the active_low setting for this pin.
+
+        @rtype: str
+        @return: the path to sysfs active_low file
+        """
+        return SYSFS_GPIO_ACTIVE_LOW_PATH % self.active_low
+
 
 class Controller(object):
     '''
@@ -243,10 +274,10 @@ class Controller(object):
         for pin in self._allocated_pins.copy().itervalues():
             self.dealloc_pin(pin.number)
 
-    def alloc_pin(self, number, direction, callback=None, edge=None):
+    def alloc_pin(self, number, direction, callback=None, edge=None, active_low=0):
 
         Logger.debug('SysfsGPIO: alloc_pin(%d, %s, %s, %s)'
-                     % (number, direction, callback, edge))
+                     % (number, direction, callback, edge, active_low))
 
         self._check_pin_validity(number)
 
@@ -254,7 +285,7 @@ class Controller(object):
             raise Exception("Pin direction %s not in %s"
                             % (direction, DIRECTIONS))
 
-        if callback is not None and edge not in EDGES:
+        if callback and edge not in EDGES:
             raise Exception("Pin edge %s not in %s" % (edge, EDGES))
 
         if not self._check_pin_already_exported(number):
@@ -263,7 +294,7 @@ class Controller(object):
         else:
             Logger.debug("SysfsGPIO: Pin %d already exported" % number)
 
-        pin = Pin(number, direction, callback, edge)
+        pin = Pin(number, direction, callback, edge, active_low)
 
         if direction is INPUT:
             self._poll_queue_register_pin(pin)
