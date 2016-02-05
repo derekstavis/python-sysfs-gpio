@@ -276,7 +276,7 @@ class Controller(object):
 
     def alloc_pin(self, number, direction, callback=None, edge=None, active_low=0):
 
-        Logger.debug('SysfsGPIO: alloc_pin(%d, %s, %s, %s)'
+        Logger.debug('SysfsGPIO: alloc_pin(%d, %s, %s, %s, %s)'
                      % (number, direction, callback, edge, active_low))
 
         self._check_pin_validity(number)
