@@ -11,7 +11,7 @@ __version__      = '0.2.2'
 __author_email__ = 'dekestavis@gmail.com'
 __author_site__  = 'http://derekstavis.github.io'
 
-requirements = ['Twisted==13.1.0']
+requirements = ['Twisted>=13.1.0']
 
 setup(
     name                 = __name__,
