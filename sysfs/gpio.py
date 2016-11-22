@@ -28,6 +28,7 @@ __all__ = ('DIRECTIONS', 'INPUT', 'OUTPUT',
            'EDGES', 'RISING', 'FALLING', 'BOTH',
            'Controller')
 
+import errno
 import os
 import select
 
@@ -113,7 +114,7 @@ class Pin(object):
 
         if active_low:
             if active_low not in ACTIVE_LOW_MODES:
-                raise Exception('You must supply a value for active_low which is either 0 or 1.')            
+                raise Exception('You must supply a value for active_low which is either 0 or 1.')
             with open(self._sysfs_gpio_active_low_path(), 'w') as fsactive_low:
                 fsactive_low.write(str(active_low))
 
@@ -256,7 +257,12 @@ class Controller(object):
     def _poll_queue_loop(self):
 
         while self._running:
-            events = self._poll_queue.poll(EPOLL_TIMEOUT)
+            try:
+                events = self._poll_queue.poll(EPOLL_TIMEOUT)
+            except IOError as error:
+                if error.errno != errno.EINTR:
+                    Logger.error(repr(error))
+                    reactor.stop()
             if len(events) > 0:
                 reactor.callFromThread(self._poll_queue_event, events)
 
