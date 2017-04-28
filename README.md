@@ -56,8 +56,8 @@ need setuptools.
     
     # Allocate a pin as level triggered Input signal
     
-    def pin_changed(state):
-        print("Pin changed to %d state" % state)
+    def pin_changed(number, state):
+        print("Pin '%d' changed to %d state" % (number, state))
     
     pin = Controller.alloc_pin(1, INPUT, pin_changed, RISING)
     pin.read()  # Reads pin logic level
